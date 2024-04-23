@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: A collection of utilities that integrate with Auto Scaling
+
+Resources:
+  # This is an _organization sink_ custom EventBridge event bus. It's intended
+  # to exist once within an AWS Organization (i.e., in a single region in a
+  # single account).
+  #
+  # Relevant Auto Scaling activity within the organization is expected to be sent
+  # to this event bus. Generally this is done by creating rules on all default
+  # event buses within the organization, which forward Auto Scaling events from
+  # all accounts and regions to this bus.
+  #
+  # Any tooling that responds to Auto Scaling events can subscribe to
+  # the relevant events on this bus.
+  #
+  # This bus should always be called `AutoScaling-org-sink`, as that is what
+  # the rules on all default buses expect.
+  OrgSinkEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: AutoScaling-org-sink
+  OrgSinkEventBusPolicy:
+    # TODO Should have a Condition to limit this to events sent by events.amazonaws.com
+    # since it's only intended to get events from other event buses, not from
+    # any arbitrary sender
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      EventBusName: !Ref OrgSinkEventBus
+      StatementId: AllowEventsToAutoScalingOrgSink
+      Statement:
+        Action: events:PutEvents
+        Condition:
+          StringEquals:
+            aws:ResourceOrgID: ${aws:PrincipalOrgID}
+        Effect: Allow
+        Principal: "*"
+        Resource: !GetAtt OrgSinkEventBus.Arn
+
+  # Sends notifications to Slack for nearly all auto scaling activity
+  # from all accounts and all regions across the AWS organization by watching
+  # the custom event bus
+  SlackNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/slack-notifications
+      Description: >-
+        Sends messages to Slack in response to auto scaling events
+        from across the organization.
+      Environment:
+        Variables:
+          AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+      Events:
+        Alarms:
+          Properties:
+            EventBusName: !Ref OrgSinkEventBus
+            Pattern:
+              detail-type:
+                - CloudWatch Alarm State Change
+              source:
+                - aws.cloudwatch
+          Type: EventBridgeRule
+      Handler: index.handler
+      MemorySize: 192
+      Policies:
+        - Statement:
+            - Action: events:PutEvents
+              Effect: Allow
+              Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+          Version: "2012-10-17"
+      Runtime: nodejs20.x
+      Tags:
+        prx:meta:tagging-version: "2021-04-07"
+        prx:cloudformation:stack-name: !Ref AWS::StackName
+        prx:cloudformation:stack-id: !Ref AWS::StackId
+        prx:ops:environment: Production
+        prx:dev:application: Auto Scaling Toolkit
+      Timeout: 20
+  SlackNotificationsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${SlackNotificationsFunction}
+      RetentionInDays: 14
+      Tags:
+        - { Key: prx:meta:tagging-version, Value: "2021-04-07" }
+        - { Key: prx:cloudformation:stack-name, Value: !Ref AWS::StackName }
+        - { Key: prx:cloudformation:stack-id, Value: !Ref AWS::StackId }
+        - { Key: prx:ops:environment, Value: Production }
+        - { Key: prx:dev:application, Value: Auto Scaling Toolkit }
+  SlackNotificationsErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: "MINOR [Auto Scaling] Slack Notifications <prod> EXPERIENCING ERRORS"
+      AlarmDescription: >-
+        Errors are occurring on the Lambda function that sends Slack messages
+        for certain Auto Scaling events. Auto scaling events are generally not
+        that interesting, but in rare cases could be an indicator of operational
+        issues.
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref SlackNotificationsFunction
+      EvaluationPeriods: 1
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Tags:
+        - { Key: prx:meta:tagging-version, Value: "2021-04-07" }
+        - { Key: prx:cloudformation:stack-name, Value: !Ref AWS::StackName }
+        - { Key: prx:cloudformation:stack-id, Value: !Ref AWS::StackId }
+        - { Key: prx:ops:environment, Value: Production }
+        - { Key: prx:dev:application, Value: Auto Scaling Toolkit }
+      Threshold: 0
+      TreatMissingData: notBreaching
