@@ -58,9 +58,17 @@ Resources:
             EventBusName: !Ref OrgSinkEventBus
             Pattern:
               detail-type:
-                - CloudWatch Alarm State Change
+                - EC2 Instance Launch Successful
+                - EC2 Instance Launch Unsuccessful
+                - EC2 Instance Terminate Successful
+                - EC2 Instance Terminate Unsuccessful
+                - EC2 Auto Scaling Instance Refresh Checkpoint Reached
+                - EC2 Auto Scaling Instance Refresh Started
+                - EC2 Auto Scaling Instance Refresh Succeeded
+                - EC2 Auto Scaling Instance Refresh Failed
+                - EC2 Auto Scaling Instance Refresh Cancelled
               source:
-                - aws.cloudwatch
+                - aws.autoscaling
           Type: EventBridgeRule
       Handler: index.handler
       MemorySize: 192
