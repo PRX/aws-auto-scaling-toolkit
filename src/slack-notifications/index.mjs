@@ -65,7 +65,7 @@ export const handler = async (event) => {
           Detail: JSON.stringify({
             username: "AWS Auto Scaling",
             icon_emoji: ":ops-autoscaling:",
-            channel: "#sandbox2",
+            channel: "G2QHC11SM", // #ops-debug
             mrkdwn: true,
             attachments: [
               {
