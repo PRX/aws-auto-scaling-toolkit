@@ -3,6 +3,7 @@ import {
   PutEventsCommand,
 } from "@aws-sdk/client-eventbridge";
 import regions from "./regions.mjs";
+import accounts from "./accounts.mjs";
 
 const eventbridge = new EventBridgeClient({ apiVersion: "2015-10-07" });
 
@@ -29,6 +30,8 @@ export const handler = async (event) => {
 
   const lines = [];
   let inOut = "";
+
+  lines.push(`*Account:* <${accounts[event.account] || event.account}`);
 
   let az = "";
   if (event?.detail?.Details?.["Availability Zone"]) {
