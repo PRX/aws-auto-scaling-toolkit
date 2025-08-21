@@ -31,7 +31,7 @@ export const handler = async (event) => {
   const lines = [];
   let inOut = "";
 
-  lines.push(`*Account:* <${accounts[event.account] || event.account}`);
+  lines.push(`*Account:* ${accounts[event.account] || event.account}`);
 
   let az = "";
   if (event?.detail?.Details?.["Availability Zone"]) {
