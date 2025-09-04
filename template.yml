@@ -45,6 +45,7 @@ Resources:
   SlackNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Architectures: [arm64]
       CodeUri: src/slack-notifications
       Description: >-
         Sends messages to Slack in response to auto scaling events
