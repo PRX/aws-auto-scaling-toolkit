@@ -2,8 +2,8 @@ import {
   EventBridgeClient,
   PutEventsCommand,
 } from "@aws-sdk/client-eventbridge";
-import regions from "./regions.mjs";
 import accounts from "./accounts.mjs";
+import regions from "./regions.mjs";
 
 const eventbridge = new EventBridgeClient({ apiVersion: "2015-10-07" });
 
@@ -18,8 +18,15 @@ export const handler = async (event) => {
     color = "#a30200";
   }
 
+  const deepLinkRoleName = "AdministratorAccess";
+
   const asgUrl = `https://console.aws.amazon.com/ec2autoscaling/home?region=${event.region}#/details/${event.detail.AutoScalingGroupName}?view=details`;
+  const urlEncodedAsgUrl = encodeURIComponent(asgUrl);
+  const deepAsgUrl = `https://d-906713e952.awsapps.com/start/#/console?account_id=${event.account}&role_name=${deepLinkRoleName}&destination=${urlEncodedAsgUrl}`;
+
   const instanceUrl = `https://console.aws.amazon.com/ec2/v2/home?region=${event.region}#InstanceDetails:instanceId=${event.detail.EC2InstanceId}`;
+  const urlEncodedInstanceUrl = encodeURIComponent(instanceUrl);
+  const deepInstanceUrl = `https://d-906713e952.awsapps.com/start/#/console?account_id=${event.account}&role_name=${deepLinkRoleName}&destination=${urlEncodedInstanceUrl}`;
 
   let environment = "????";
   if (event.detail.AutoScalingGroupName.includes("prod")) {
@@ -38,7 +45,9 @@ export const handler = async (event) => {
     az = ` in \`${event.detail.Details["Availability Zone"]}\``;
   }
 
-  lines.push(`*Instance:* <${instanceUrl}|${event.detail.EC2InstanceId}>${az}`);
+  lines.push(
+    `*Instance:* <${deepInstanceUrl}|${event.detail.EC2InstanceId}>${az}`,
+  );
 
   if (/capacity from [0-9]+ to [0-9]+/.test(event.detail.Cause)) {
     const m = event.detail.Cause.match(/capacity from ([0-9]+) to ([0-9]+)/);
@@ -79,7 +88,7 @@ export const handler = async (event) => {
                     type: "section",
                     text: {
                       type: "mrkdwn",
-                      text: `*<${asgUrl}|SCALE${inOut} | ${regions[event.region]} » ASG &lt;${environment}&gt; ${event["detail-type"].toUpperCase()}>*`,
+                      text: `*<${deepAsgUrl}|SCALE${inOut} | ${regions[event.region]} » ASG &lt;${environment}&gt; ${event["detail-type"].toUpperCase()}>*`,
                     },
                   },
                   {
